@@ -12,15 +12,17 @@ type ServiceHandler struct {
 	resultType reflect.Type
 }
 
+var emptyErr error = errors.New("")
+
 func (h *ServiceHandler) Succeed(result interface{}) {
 	if reflect.TypeOf(result) != h.resultType {
 		panic(fmt.Sprintf("snailx: invalided result type, want %s, got %s", h.resultType, reflect.TypeOf(result)))
 	}
-	h.cbValue.Call([]reflect.Value{reflect.ValueOf(true), reflect.ValueOf(result), reflect.ValueOf(nil)})
+	h.cbValue.Call([]reflect.Value{reflect.ValueOf(true), reflect.ValueOf(result), reflect.Zero(reflect.TypeOf(emptyErr))})
 }
 
 func (h *ServiceHandler) Failed(cause error) {
-	h.cbValue.Call([]reflect.Value{reflect.ValueOf(true), reflect.ValueOf(nil), reflect.ValueOf(cause)})
+	h.cbValue.Call([]reflect.Value{reflect.ValueOf(false), reflect.Zero(h.resultType), reflect.ValueOf(cause)})
 }
 
 var emptyServiceHandlerType = reflect.TypeOf(&ServiceHandler{})
@@ -119,8 +121,6 @@ func (s *localServiceGroup) UnDeployAll() {
 	return
 }
 
-var emptyErrorType = reflect.TypeOf(errors.New(""))
-
 func (s *localServiceGroup) Invoke(address string, arg interface{}, cb ServiceCallback) {
 	s.mutex.RLock()
 	service, hasService := s.services[address]
@@ -141,7 +141,7 @@ func (s *localServiceGroup) Invoke(address string, arg interface{}, cb ServiceCa
 			panic("snailx: cb needs 3 parameters, first type is bool, second type is the service result type, last type is error")
 		}
 		errType := cbType.In(2)
-		if errType != emptyErrorType {
+		if errType.Name() != "error" {
 			panic("snailx: cb needs 3 parameters, first type is bool, second type is the service result type, last type is error")
 		}
 		resultType := cbType.In(1)

@@ -51,9 +51,9 @@ func (s *serviceEventLoopBus) start() (err error) {
 	s.run = true
 	cpus := runtime.NumCPU()
 	s.boss = make(chan *serviceEvent, cpus*512)
-	workers := make([]chan *serviceEvent, cpus*2)
-	for i := 0; i < cap(workers); i++ {
-		workers[i] = make(chan *serviceEvent, cpus*512)
+	s.workers = make([]chan *serviceEvent, cpus*2)
+	for i := 0; i < cap(s.workers); i++ {
+		s.workers[i] = make(chan *serviceEvent, cpus*512)
 	}
 	s.wg.Add(1)
 	go func(s *serviceEventLoopBus) {
