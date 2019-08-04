@@ -3,18 +3,23 @@ package snailx
 import (
 	"errors"
 	"fmt"
+	"github.com/nats-io/nuid"
 	"runtime"
 	"sync"
 )
 
 func New() (x SnailX) {
 	services := newLocalServiceGroup()
+	serviceBus := newServiceEventLoopBus(services)
+	if err := serviceBus.start(); err != nil {
+		panic(err)
+	}
 	x = &standaloneSnailX{
 		services: services,
 		snailMap: make(map[string]Snail),
 		runMutex: new(sync.Mutex),
 		run:      true,
-		serviceBus:newServiceEventLoopBus(services),
+		serviceBus:serviceBus,
 	}
 	return
 }
@@ -72,8 +77,12 @@ func (x *standaloneSnailX) Deploy(snail Snail) (id string) {
 		panic("deploy failed, cause it is stopped")
 		return
 	}
-	id = fmt.Sprintf("snail-%d", len(x.snailMap)+1)
-	snail.SetServiceBus(newServiceEventLoopBus(x.services))
+	id = fmt.Sprintf("snail-%d-%s", len(x.snailMap)+1, nuid.Next())
+	serviceBus := newServiceEventLoopBus(x.services)
+	if err := serviceBus.start(); err != nil {
+		panic(err)
+	}
+	snail.SetServiceBus(serviceBus)
 	snail.Start()
 	x.snailMap[id] = snail
 	return
@@ -86,16 +95,21 @@ func (x *standaloneSnailX) DeployWithOptions(snail Snail, options SnailOptions) 
 		panic("deploy failed, cause it is stopped")
 		return
 	}
-	id = fmt.Sprintf("snail-%d", len(x.snailMap)+1)
+	var serviceBus ServiceBus
+	iid = fmt.Sprintf("snail-%d-%s", len(x.snailMap)+1, nuid.Next())
 	if options.ServiceBusKind == EVENT_SERVICE_BUS {
-		snail.SetServiceBus(newServiceEventLoopBus(x.services))
+		serviceBus = newServiceEventLoopBus(x.services)
 	} else if options.ServiceBusKind == WORKER_SERVICE_BUS {
 		workers := options.WorkersNum
 		if workers <= 0 {
 			workers = runtime.NumCPU() * 2
 		}
-		snail.SetServiceBus(newServiceWorkBus(workers, x.services))
+		serviceBus = newServiceWorkBus(workers, x.services)
 	}
+	if err := serviceBus.start(); err != nil {
+		panic(err)
+	}
+	snail.SetServiceBus(serviceBus)
 	snail.Start()
 	x.snailMap[id] = snail
 	return
