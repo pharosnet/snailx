@@ -67,7 +67,7 @@ func (x *standaloneSnailX) Stop() (err error) {
 		delete(x.snailMap, id)
 	}
 	x.services.UnDeployAll()
-	return
+	return x.serviceBus.stop()
 }
 
 func (x *standaloneSnailX) Deploy(snail Snail) (id string) {
@@ -96,7 +96,7 @@ func (x *standaloneSnailX) DeployWithOptions(snail Snail, options SnailOptions) 
 		return
 	}
 	var serviceBus ServiceBus
-	iid = fmt.Sprintf("snail-%d-%s", len(x.snailMap)+1, nuid.Next())
+	id = fmt.Sprintf("snail-%d-%s", len(x.snailMap)+1, nuid.Next())
 	if options.ServiceBusKind == EVENT_SERVICE_BUS {
 		serviceBus = newServiceEventLoopBus(x.services)
 	} else if options.ServiceBusKind == WORKER_SERVICE_BUS {
