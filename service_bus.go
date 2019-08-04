@@ -3,7 +3,6 @@ package snailx
 import (
 	"errors"
 	"fmt"
-	"math"
 	"runtime"
 	"sync"
 )
@@ -51,10 +50,10 @@ func (s *serviceEventLoopBus) start() (err error) {
 	}
 	s.run = true
 	cpus := runtime.NumCPU()
-	s.boss = make(chan *serviceEvent, math.MaxInt32)
+	s.boss = make(chan *serviceEvent, cpus*512)
 	workers := make([]chan *serviceEvent, cpus*2)
 	for i := 0; i < cap(workers); i++ {
-		workers[i] = make(chan *serviceEvent, math.MaxInt32)
+		workers[i] = make(chan *serviceEvent, cpus*512)
 	}
 	s.wg.Add(1)
 	go func(s *serviceEventLoopBus) {
@@ -91,8 +90,16 @@ func (s *serviceEventLoopBus) start() (err error) {
 				s.wg.Done()
 				break
 			}
-			s.workers[workerNo] <- event
-			workerNo = (workerNo + 1) % workerNum
+			times := 0
+			for {
+				times++
+				workerNo = (workerNo + 1) % workerNum
+				worker := s.workers[workerNo]
+				if times >= workerNum*2 || len(worker) < cap(worker) {
+					worker <- event
+					break
+				}
+			}
 		}
 	}(s)
 	return
@@ -182,7 +189,7 @@ func (s *serviceWorkBus) start() (err error) {
 		return
 	}
 	s.run = true
-	s.channel = make(chan *serviceEvent, math.MaxInt32)
+	s.channel = make(chan *serviceEvent, runtime.NumCPU()*512)
 	s.wg.Add(s.workers)
 	for w := 0; w < s.workers; w++ {
 		go func(s *serviceWorkBus) {

@@ -8,11 +8,13 @@ import (
 )
 
 func New() (x SnailX) {
+	services := newLocalServiceGroup()
 	x = &standaloneSnailX{
-		services: newLocalServiceGroup(),
+		services: services,
 		snailMap: make(map[string]Snail),
 		runMutex: new(sync.Mutex),
 		run:      true,
+		serviceBus:newServiceEventLoopBus(services),
 	}
 	return
 }
@@ -22,9 +24,11 @@ type SnailX interface {
 	Deploy(snail Snail) (id string)
 	DeployWithOptions(snail Snail, options SnailOptions) (id string)
 	UnDeploy(snailId string)
+	ServiceBus() (bus ServiceBus)
 }
 
 type standaloneSnailX struct {
+	serviceBus ServiceBus
 	services ServiceGroup
 	snailMap map[string]Snail
 	runMutex *sync.Mutex
@@ -108,4 +112,9 @@ func (x *standaloneSnailX) UnDeploy(snailId string) {
 		snail.Stop()
 		delete(x.snailMap, snailId)
 	}
+}
+
+func (x *standaloneSnailX) ServiceBus() (bus ServiceBus) {
+	bus = x.serviceBus
+	return
 }
