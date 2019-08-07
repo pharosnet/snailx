@@ -93,6 +93,7 @@ func (s *serviceEventLoopBus) start() (err error) {
 		}
 		workerStartWg.Wait()
 		workerNo := 0
+		workerNumBase := workerNum - 1
 		for {
 			event, ok := <-s.boss
 			if !ok {
@@ -102,8 +103,8 @@ func (s *serviceEventLoopBus) start() (err error) {
 			times := 0
 			for {
 				times++
-				workerNo = (workerNo + 1) % workerNum
-				worker := s.workers[workerNo]
+				worker := s.workers[workerNo & workerNumBase]
+				workerNo ++
 				if times >= workerNum*2 || len(worker) < cap(worker) {
 					worker <- event
 					break

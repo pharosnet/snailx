@@ -1,7 +1,3 @@
-service handler -> sync poll
-
-fly service bus -> use cond with atomic spain locker
-
 cluster ->  nats
             use publish to nook others, 1. consume topic (discard self) , then add self, push all to others, package { id, service list }
             make tow queue consumers every service, one is listen request, another is listen response.
