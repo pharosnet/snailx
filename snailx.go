@@ -97,14 +97,27 @@ func (x *standaloneSnailX) DeployWithOptions(snail Snail, options SnailOptions) 
 	}
 	var serviceBus ServiceBus
 	id = fmt.Sprintf("snail-%d-%s", len(x.snailMap)+1, nuid.Next())
-	if options.ServiceBusKind == EVENT_SERVICE_BUS {
+	serviceKind := options.ServiceBusKind
+	if serviceKind == "" {
+		serviceKind = EventServiceBus
+	}
+	if options.ServiceBusKind == EventServiceBus {
 		serviceBus = newServiceEventLoopBus(x.services)
-	} else if options.ServiceBusKind == WORKER_SERVICE_BUS {
+	} else if options.ServiceBusKind == WorkerServiceBus {
 		workers := options.WorkersNum
 		if workers <= 0 {
 			workers = runtime.NumCPU() * 2
 		}
 		serviceBus = newServiceWorkBus(workers, x.services)
+	} else if options.ServiceBusKind == FlyServiceBus {
+		flyServiceBusCapacity := options.FlyServiceBusCapacity
+		if flyServiceBusCapacity <= 0 {
+			flyServiceBusCapacity = runtime.NumCPU() * 2 * 64
+		}
+		serviceBus = newServiceEventFlyBus(flyServiceBusCapacity, x.services)
+	} else {
+		panic("snailx: unknown service kind")
+		return
 	}
 	if err := serviceBus.start(); err != nil {
 		panic(err)

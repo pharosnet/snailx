@@ -26,7 +26,7 @@ go get github.com/pharosnet/snailx
   // default service bus, event loop type
   x.Deploy(&BookSnail{})
   // worker type service bus
-  x.DeployWithOptions(&BookConsumerSnail{}, snailx.SnailOptions{ServiceBusKind:snailx.WORKER_SERVICE_BUS, WorkersNum:4})
+  x.DeployWithOptions(&BookConsumerSnail{}, snailx.SnailOptions{ServiceBusKind:snailx.WorkerServiceBus, WorkersNum:4})
   // graceful shutdown
   sigint := make(chan os.Signal,1)
   signal.Notify(sigint, syscall.SIGINT, syscall.SIGTERM)
@@ -84,9 +84,7 @@ go get github.com/pharosnet/snailx
   	// the first param is service address
   	// the second param must be a func which has three param (the first must be bool type, the second must be service result type, the last must be error type)
   	if err := s.bus.Invoke("helloWorkService", &BookGetArg{Name:"book name"}, func(ok bool, book *Book, err error) {
-  		fmt.Println("ok:", ok)
-  		fmt.Println("book:", book)
-  		fmt.Println("err:", err)
+  		fmt.Println("ok:", ok, "book:", book, "err:", err)
   	}); err != nil {
   		fmt.Println("invoke service failed", err)
   	}

@@ -13,6 +13,12 @@ type serviceEvent struct {
 	cb      ServiceCallback
 }
 
+var serviceEventPool = &sync.Pool{
+	New: func() interface{} {
+		return &serviceEvent{}
+	},
+}
+
 type ServiceBus interface {
 	start() (err error)
 	stop() (err error)
@@ -51,7 +57,7 @@ func (s *serviceEventLoopBus) start() (err error) {
 	s.run = true
 	cpus := runtime.NumCPU()
 	s.boss = make(chan *serviceEvent, cpus*512)
-	s.workers = make([]chan *serviceEvent, cpus*2)
+	s.workers = make([]chan *serviceEvent, cpus)
 	for i := 0; i < cap(s.workers); i++ {
 		s.workers[i] = make(chan *serviceEvent, cpus*512)
 	}
@@ -78,12 +84,16 @@ func (s *serviceEventLoopBus) start() (err error) {
 						panic(fmt.Sprintf("ServiceCallback is nil, address is %s", event.address))
 					}
 					s.services.Invoke(event.address, event.arg, event.cb)
-
+					event.arg = nil
+					event.address = ""
+					event.cb = nil
+					serviceEventPool.Put(event)
 				}
 			}(i, s, workerStartWg)
 		}
 		workerStartWg.Wait()
 		workerNo := 0
+		workerNumBase := workerNum - 1
 		for {
 			event, ok := <-s.boss
 			if !ok {
@@ -93,8 +103,8 @@ func (s *serviceEventLoopBus) start() (err error) {
 			times := 0
 			for {
 				times++
-				workerNo = (workerNo + 1) % workerNum
-				worker := s.workers[workerNo]
+				worker := s.workers[workerNo & workerNumBase]
+				workerNo ++
 				if times >= workerNum*2 || len(worker) < cap(worker) {
 					worker <- event
 					break
@@ -157,7 +167,14 @@ func (s *serviceEventLoopBus) Invoke(address string, arg interface{}, cb Service
 		err = fmt.Errorf("invoke service failed, cb is nil")
 		return
 	}
-	s.boss <- &serviceEvent{address: address, arg: arg, cb: cb}
+	event, ok := serviceEventPool.Get().(*serviceEvent)
+	if !ok {
+		panic("snailx: get event from pool failed, bad type")
+	}
+	event.address = address
+	event.arg = arg
+	event.cb = cb
+	s.boss <- event
 	return
 }
 
@@ -206,6 +223,10 @@ func (s *serviceWorkBus) start() (err error) {
 					panic(fmt.Sprintf("ServiceCallback is nil, address is %s", event.address))
 				}
 				s.services.Invoke(event.address, event.arg, event.cb)
+				event.arg = nil
+				event.address = ""
+				event.cb = nil
+				serviceEventPool.Put(event)
 			}
 		}(s)
 	}
@@ -261,6 +282,13 @@ func (s *serviceWorkBus) Invoke(address string, arg interface{}, cb ServiceCallb
 		err = fmt.Errorf("invoke service failed, cb is nil")
 		return
 	}
-	s.channel <- &serviceEvent{address: address, arg: arg, cb: cb}
+	event, ok := serviceEventPool.Get().(*serviceEvent)
+	if !ok {
+		panic("snailx: get event from pool failed, bad type")
+	}
+	event.address = address
+	event.arg = arg
+	event.cb = cb
+	s.channel <- event
 	return
 }

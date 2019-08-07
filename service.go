@@ -12,6 +12,12 @@ type ServiceHandler struct {
 	resultType reflect.Type
 }
 
+var serviceHandlerPool = &sync.Pool{
+	New: func() interface{} {
+		return &ServiceHandler{}
+	},
+}
+
 var emptyErr error = errors.New("")
 
 func (h *ServiceHandler) Succeed(result interface{}) {
@@ -145,11 +151,14 @@ func (s *localServiceGroup) Invoke(address string, arg interface{}, cb ServiceCa
 			panic("snailx: cb needs 3 parameters, first type is bool, second type is the service result type, last type is error")
 		}
 		resultType := cbType.In(1)
-		handler := &ServiceHandler{
-			cbValue:    reflect.ValueOf(cb),
-			resultType: resultType,
+		handler, ok := serviceHandlerPool.Get().(*ServiceHandler)
+		if !ok {
+			panic("snailx: get service handler from pool failed, bad type")
 		}
+		handler.cbValue = reflect.ValueOf(cb)
+		handler.resultType = resultType
 		service.service.Call([]reflect.Value{reflect.ValueOf(arg), reflect.ValueOf(handler)})
+		serviceHandlerPool.Put(handler)
 	}
 	return
 }
